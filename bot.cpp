@@ -1,9 +1,9 @@
-/*
-Author: Talha Rahman
-Course: CSCI-135
-Instructor: Maryash
-Assignment: Project 3
-*/
+/**
+ * @author Talha Rahman
+ * Course: CSCI-135
+ * Instructor: Maryash
+ * Project 3
+ */
 
 // This program is used to control the movement of 
 // the dwarves, such as getting them to walk around
@@ -11,9 +11,8 @@ Assignment: Project 3
 // and a few other stuff.
 #include <cstdlib>
 #include <cmath>
-#include <iostream>
 #include "bot.h"
-using namespace std;
+using std::to_string;
 
 const int MAX_ROWS = 40;
 const int MAX_COLS = 40;
@@ -22,18 +21,10 @@ const int MAX_NUM = 10;
 int ROWS;  // global variables
 int COLS;
 int NUM;
-bool stuck = false;
-bool firstTime = true;
-static bool building = false;
 
-bool isNextToTree(Dwarf&, int&, int&, Dir&);
-bool isNextToFence(Dwarf&, int&, int&, Dir&);
-bool lookForNextFence(Dwarf&, int&, int&, int, Dir&);
-bool lookForNextTree(Dwarf&, int&, int&, int);
-bool outofBounds(Dwarf&, int&, int&);
-Dir checkForSpace(Dwarf&, int&, int&, int);
-void goToRandomPosition(Dwarf&, ostream&);
-//cygdrive/c/Users/talha/documents/Git/csci-135/project3/dwarves2
+// For debugging
+// std::ofstream file("report.txt");
+// std::string output = "";
 
 /* onStart: 
 An Initialization procedure called at the start of the game.
@@ -45,13 +36,14 @@ Parameters:
     num:  number of dwarfs
     log:  a cout-like log */
 
-void onStart(int rows, int cols, int num, ostream &log) {
-  log << "Start!\n"; // Print a greeting message
+void onStart(int rows, int cols, int num, std::ostream &log) {
+  log << "Start!" << std::endl; // Print a greeting message
 
   ROWS = rows; // Save values in global variables
   COLS = cols;
   NUM = num;
 }
+
 /* onAction: 
 A procedure called each time an idle dwarf is choosing 
 their next action.
@@ -62,240 +54,220 @@ Parameters:
     minutes: number of minutes (0-59)
     log:     a cout-like log  */
 
-void onAction(Dwarf &dwarf, int day, int hours, int minutes, ostream &log) {
+void onAction(Dwarf &dwarf, int day, int hours, int minutes, std::ostream &log) {
   // Get current position of the dwarf
   int r = dwarf.row();
   int c = dwarf.col();
-  Dir d;
+  Dir dir;
 
-  // Check if there is a tree adjacent to dwarf
-  if (isNextToTree(dwarf, r, c, d)) {
-    // If there is a pine tree, chop it
-    log << "Dwarf " << dwarf.name() << " - Chopping at " << r << " " << c << " \n";
-    dwarf.start_chop(d);
-    stuck = false;
-    return;
-  }
-
-  if(isNextToFence(dwarf, r, c, d)){
-    if(outofBounds(dwarf, r, c)) {
-      goToRandomPosition(dwarf, log);
-      return;
-    }
-    log << "Dwarf " << dwarf.name() << " - Building fence at " << r << " " << c << "\n";
-    dwarf.start_build(d);
-    stuck = false;
-    return;
-  }
-  
-  // Moves dwarf to next empty tile if repeating actions
-  if (stuck){
-    goToRandomPosition(dwarf, log);
+  // Checks for any adjacent trees
+  if (isNextToTree(dwarf, dir) ){
+    log << "Dwarf " << dwarf.name() << " - Chopping Tree at (" << r << "," << c << ")\n";
+    dwarf.start_chop(dir);
     return;
   } 
 
-  if (building){
-    if (lookForNextFence(dwarf, r, c, 1, d)) {
+  // pair.first == true if a tree was found nearby
+  auto pair = lookForNearestTree(dwarf);
 
-      log << "Dwarf " << dwarf.name() << " - Fence found. Walking to " << r << " " << c << "\n";
-      dwarf.start_walk(r, c);
-      return;
-    } else {
-      checkForSpace(dwarf, r, c, 1);
-      log << "Dwarf " << dwarf.name() << " - Can't find fence. Walking to " << r << " " << c << "\n";
-      dwarf.start_walk(r, c);
-      return;
-    }
-  }
-
-  if(dwarf.lumber() >= 300 && firstTime){
-    dwarf.start_build(checkForSpace(dwarf, r, c, 1));
-    log << "Dwarf " << dwarf.name() << " - Building fence at " << r << " " << c << "\n";
-    firstTime = false;
-    building = true;
+  if (pair.first) {
+    // pair.second is the Point of the nearest Tree
+    r = pair.second.x;
+    c = pair.second.y;
+    log << "Dwarf " << dwarf.name() << " - Tree found. Walking to (" << r << "," << c << ")\n";
+    dwarf.start_walk(r, c);
+    return;
+  } else {
+    // if no tree was found just go to a random spot
+    goToRandomPosition(dwarf, log);
     return;
   }
 
-  if(lookForNextTree(dwarf, r, c, 1) && !building){ // go next to tree
-    log << "Dwarf " << dwarf.name() << " - Tree found. Walking to " << r << " " << c << "\n";
-    dwarf.start_walk(r, c);
-    stuck = false;
-  } else if (!building){ // go to next empty tile
-    checkForSpace(dwarf, r, c, 1);
-    log << "Dwarf " << dwarf.name() << " - Looking for tree. Walking to " << r << " " << c << "\n";
-    dwarf.start_walk(r, c);
-    stuck = false;
-  }
 }
 
-bool outofBounds(Dwarf& dwarf, int& r, int& c){
-  if (r < 0 || r > ROWS) return true;
-  if (c < 0 || c > COLS) return true;
-  return false;
-}
-// will find an empty space near a tile
-Dir checkForSpace(Dwarf& dwarf, int &r, int &c, int count){
-  if (dwarf.look(r-count, c) == EMPTY ){ // NORTH
-    r--;
-    return NORTH;
-  }
-  if (dwarf.look(r, c+count) == EMPTY) { // EAST
-    c++;
-    return EAST;
-  }
-  if (dwarf.look(r+count, c) == EMPTY) { // SOUTH
-    r++;
-    return SOUTH;
-  }
-  if (dwarf.look(r, c-count) == EMPTY) { // WEST
-    c--;
-    return WEST;
-  }
-  r = rand() % ROWS; 
-  c = rand() % COLS;
-}
-
-bool lookForNextTree(Dwarf &dwarf, int &r, int &c, int count){
-  if (dwarf.look(r, c+count) == PINE_TREE || dwarf.look(r, c+count) == APPLE_TREE) {
-    c += --count;
-    return true;
-  }
-  if (dwarf.look(r, c-count) == PINE_TREE || dwarf.look(r, c-count) == APPLE_TREE) {
-    c -= --count;
-    return true;
-  }
-  if (dwarf.look(r-count, c) == PINE_TREE || dwarf.look(r-count, c) == APPLE_TREE){
-    r -= --count;
-    return true;
-  }
-  if (dwarf.look(r+count, c) == PINE_TREE || dwarf.look(r+count, c) == APPLE_TREE) {
-    r += --count;
-    return true;
-  }
-  // diagonals
-  if (dwarf.look(r+count, c+count) == PINE_TREE || dwarf.look(r+count, c+count) == APPLE_TREE) {
-    r += count; c += count;
-    checkForSpace(dwarf, r, c, 1);
-    return true;
-  }
-  if (dwarf.look(r-count, c-count) == PINE_TREE || dwarf.look(r-count, c-count) == APPLE_TREE) {
-    r -= count; c -= count;
-    checkForSpace(dwarf, r, c, 1);
-    return true;
-  }
-  if (dwarf.look(r+count, c-count) == PINE_TREE || dwarf.look(r+count, c-count) == APPLE_TREE) {
-    r += count; c -= count;
-    checkForSpace(dwarf, r, c, 1);
-    return true;
-  }
-  if (dwarf.look(r-count, c+count) == PINE_TREE || dwarf.look(r-count, c+count) == APPLE_TREE) {
-    r -= count; c += count;
-    checkForSpace(dwarf, r, c, 1);
-    return true;
-  }
-  if (count == ROWS) {
-    stuck = true; 
-    return false;
-  }
-  // recursively calls to check for tiles that are farther out
-  lookForNextTree(dwarf, r, c, ++count);
-}
-
-bool lookForNextFence(Dwarf &dwarf, int &r, int &c, int count, Dir& d){
-  if (dwarf.look(r, c+count) == FENCE) {
-    c += count-2;
-    d = EAST;
-    return true;
-  }
-  if (dwarf.look(r, c-count) == FENCE) {
-    c -= count-2;
-    d = WEST;
-    return true;
-  }
-  if (dwarf.look(r-count, c) == FENCE){
-    r -= count-2;
-    d = NORTH;
-    return true;
-  }
-  if (dwarf.look(r+count, c) == FENCE) {
-    r += count-2;
-    d = SOUTH;
-    return true;
-  }
-  // diagonals
-  if (dwarf.look(r+count, c+count) == FENCE) {
-    r += count; c += count;
-    d = checkForSpace(dwarf, r, c, 2);
-    return true;
-  }
-  if (dwarf.look(r-count, c-count) == FENCE) {
-    r -= count; c -= count;
-    d = checkForSpace(dwarf, r, c, 2);
-    return true;
-  }
-  if (dwarf.look(r+count, c-count) == FENCE) {
-    r += count; c -= count;
-    d = checkForSpace(dwarf, r, c, 2);
-    return true;
-  }
-  if (dwarf.look(r-count, c+count) == FENCE) {
-    r -= count; c += count;
-    d = checkForSpace(dwarf, r, c, 2);
-    return true;
-  }
-  if (count == ROWS) {
-    stuck = true; 
-    return false;
-  }
-  // recursively calls to check for tiles that are farther out
-  lookForNextFence(dwarf, r, c, ++count, d);
-}
-
-// this function will check if the dwarf is next to a tree
-bool isNextToTree(Dwarf &dwarf, int &r, int &c, Dir &d){
-  if (dwarf.look(r, c+1) == PINE_TREE || dwarf.look(r, c+1) == APPLE_TREE) {
-    d = EAST;
-    return true;
-  }
-  if (dwarf.look(r, c-1) == PINE_TREE || dwarf.look(r, c-1) == APPLE_TREE) {
-    d = WEST;
-    return true;
-  }
-  if (dwarf.look(r-1, c) == PINE_TREE || dwarf.look(r-1, c) == APPLE_TREE){
-    d = NORTH;
-    return true;
-  }
-  if (dwarf.look(r+1, c) == PINE_TREE || dwarf.look(r+1, c) == APPLE_TREE) {
-    d = SOUTH;
-    return true;
-  }
-  return false;
-}
-// checks if dwarf is 2 tiles from a fence
-bool isNextToFence(Dwarf &dwarf, int &r, int &c, Dir &d) {
-  if (dwarf.look(r, c+2) == FENCE && dwarf.look(r, c+1) == EMPTY) {
-    d = EAST;
-    return true;
-  }
-  if (dwarf.look(r, c-2) == FENCE && dwarf.look(r, c-1) == EMPTY) {
-    d = WEST;
-    return true;
-  }
-  if (dwarf.look(r-2, c) == FENCE && dwarf.look(r-1, c) == EMPTY){
-    d = NORTH;
-    return true;
-  }
-  if (dwarf.look(r+2, c) == FENCE && dwarf.look(r+1, c) == EMPTY) {
-    d = SOUTH;
-    return true;
-  }
-  return false;
-}
-
-void goToRandomPosition(Dwarf& dwarf, ostream& log){
+void goToRandomPosition(Dwarf& dwarf, std::ostream& log) {
   int rr = rand() % ROWS; 
   int cc = rand() % COLS;
-  log << "Dwarf " << dwarf.name() << " - Randomly walking to " << rr << " " << cc << "\n";
+  log << "Dwarf " << dwarf.name() << " - Randomly walking to (" << rr << "," << cc << ")\n";
   dwarf.start_walk(rr, cc);
-  stuck = false;
+}
+
+bool isNextToTree(Dwarf& dwarf, Dir& dir) {
+  // Returns true if place is a tree. Else false.
+  auto isTree( [] (Place p) -> bool
+    { return p == PINE_TREE || p == APPLE_TREE; }
+  );
+
+  const int R = dwarf.row();
+  const int C = dwarf.col();
+
+  if (isTree(dwarf.look(R, C + 1))) { // Checks East
+    dir = EAST;
+    return true;
+  }
+
+  if (isTree(dwarf.look(R, C - 1))) { // Checks West
+    dir = WEST;
+    return true;
+  }
+
+  if (isTree(dwarf.look(R - 1, C))) { // Checks North
+    dir = NORTH;
+    return true;
+  }
+
+  if (isTree(dwarf.look(R + 1, C))) { // Checks South
+    dir = SOUTH;
+    return true;
+  }
+
+  return false;
+}
+
+bool isValidSpace(const int& r, const int& c) {
+  if ((r < 0 || c < 0) or (r >= ROWS || c >= COLS)) 
+    return false;
+  return true; 
+}
+
+
+/**
+ *   1 2 3 4 5   D = Dwarf. (row, col)
+ * 1 X X X X X   Algo will check nearby tiles for Tree
+ * 2 X X X X X   Order of checking: 
+ * 3 X X D X X   (2,2) -> (3, 2) -> (4, 2)
+ * 4 X X X X X   (4, 3) -> (4, 4) -> (3, 4)
+ * 5 X X X X X   (2, 4) -> (2, 3) -> (2, 2)
+ *               Will repeat this type of search at (1,1) and so forth
+ */ 
+
+std::pair<bool, Point> lookForNearestTree(Dwarf& dwarf) {
+  // Returns true if place is a tree. Else false.
+  auto isTree( [] (Place p) -> bool
+    { return p == PINE_TREE || p == APPLE_TREE; }
+  );
+
+  // will hold Points that point to nearby trees
+  std::list<Point> list;
+  bool found = false;
+
+  int startR = dwarf.row();
+  int startC = dwarf.col();
+
+  int size = std::max(ROWS, COLS);
+
+  // worst case algorithm repeats max(ROS, COLS)
+  for (int i = 1; i < size; ++i) {
+    // (r, c) is a point north-west of the dwarf
+    int r = startR - i;
+    int c = startC - i;
+
+    // checks from top-left to bottom-left
+    for(; r < startR + i; ++r) {
+      // skips if (r, c) not a valid position on map
+      if(!isValidSpace(r, c)) continue;
+      
+      if (isTree(dwarf.look(r, c))) {
+        auto pair = checkForAdjacentSpace(dwarf, r, c);
+        if (pair.first) {
+          list.push_back(pair.second);
+          found = true;
+        }
+      }
+    }
+
+    // checks from bottom-left to bottom-right
+    for(; c < startC + i; ++c) {
+      if(!isValidSpace(r, c)) continue;
+      
+      if (isTree(dwarf.look(r, c))) {
+        auto pair = checkForAdjacentSpace(dwarf, r, c);
+        if (pair.first) {
+          list.push_back(pair.second);
+          found = true;
+        }
+      }
+    }
+
+    // checks from bottom-right to top-right
+    for(; r > startR - i; --r) {
+      if(!isValidSpace(r, c)) continue;
+      
+      if (isTree(dwarf.look(r, c))) {
+        auto pair = checkForAdjacentSpace(dwarf, r, c);
+        if (pair.first) {
+          list.push_back(pair.second);
+          found = true;
+        }
+      }
+    }
+
+    // checks from top-right to top-left
+    for(; c > startC - i; --c) {
+      if(!isValidSpace(r, c)) continue;
+      
+      if (isTree(dwarf.look(r, c))) {
+        auto pair = checkForAdjacentSpace(dwarf, r, c);
+        if (pair.first) {
+          list.push_back(pair.second);
+          found = true;
+        }
+      }
+    }
+  }
+
+  if (found) {
+    return std::make_pair(true, calcNearestPointToDwarf(dwarf, list));
+  } else {
+    // file << output << "\n"; // for debugging
+    return std::make_pair(false, Point{});
+  }
+}
+
+std::pair<bool, Point> checkForAdjacentSpace(Dwarf& dwarf, const int& r, const int& c) {
+  std::list<Point> list;
+  bool found = false;
+  
+  if (dwarf.look(r - 1, c) == EMPTY ){ // NORTH
+    list.push_back(Point(r - 1, c));
+    found = true;
+  }
+  if (dwarf.look(r, c + 1) == EMPTY) { // EAST
+    list.push_back(Point(r, c + 1));
+    found = true;
+  }
+  if (dwarf.look(r + 1, c) == EMPTY) { // SOUTH
+    list.push_back(Point(r + 1, c));
+    found = true;
+  }
+  if (dwarf.look(r, c - 1) == EMPTY) { // WEST
+    list.push_back(Point(r, c - 1));
+    found = true;
+  }
+  
+  // If multiple empty spots were found, return only the closest
+  if (found) {
+    Point nearestPoint = calcNearestPointToDwarf(dwarf, list);
+    return std::make_pair(true, Point{nearestPoint.x, nearestPoint.y});
+  }
+  
+  return std::make_pair(false, Point{});
+}
+
+Point calcNearestPointToDwarf(Dwarf& dwarf, const std::list<Point>& list) {
+  Point nearestPoint;
+  int distance = INT_MAX;
+
+  for(auto& point : list) {
+    int currentDist = abs(dwarf.row() - point.x) + abs(dwarf.col() - point.y);
+
+    // if the current Point is closer than the previous closest distance
+    // then we set this Point as the nearestPoint
+    if (currentDist < distance) {
+      nearestPoint = point;
+      distance = currentDist;
+    }
+  }
+
+  return nearestPoint;
 }
