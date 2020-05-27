@@ -11,7 +11,7 @@ OBJS = $(SRCS:.cpp=.o)
 
 EXECS = $(EXEC)
 
-CFLAGS += -Wall -pedantic -Wreturn-type -std=c++11 -O2 
+CFLAGS += -Wall -pedantic -Wreturn-type -std=c++17 -O3 
 LDLIBS += -lm -lncurses
 
 
