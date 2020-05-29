@@ -256,7 +256,7 @@ std::pair<bool, Point> checkForAdjacentSpace(Dwarf& dwarf, const int& r, const i
 
 Point calcNearestPointToDwarf(Dwarf& dwarf, const std::list<Point>& list) {
   Point nearestPoint;
-  int distance = INT_MAX;
+  int distance = INT32_MAX;
 
   for(auto& point : list) {
     int currentDist = abs(dwarf.row() - point.x) + abs(dwarf.col() - point.y);
